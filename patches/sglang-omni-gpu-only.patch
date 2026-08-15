@@ -1,0 +1,40 @@
+diff --git a/sglang_omni/models/minimax_music3/checkpoint.py b/sglang_omni/models/minimax_music3/checkpoint.py
+index e43b7f3..67db8ca 100644
+--- a/sglang_omni/models/minimax_music3/checkpoint.py
++++ b/sglang_omni/models/minimax_music3/checkpoint.py
+@@ -81,7 +81,9 @@ def load_torch_state(path: str | Path, *, device: torch.device) -> dict[str, Any
+     return state
+ 
+ 
+-def load_audio_state(paths: TTMCheckpointPaths) -> dict[str, torch.Tensor]:
++def load_audio_state(
++    paths: TTMCheckpointPaths, *, device: torch.device
++) -> dict[str, torch.Tensor]:
+     """Load Qwen's audio embedding and RVQ decoder weights."""
+ 
+     from safetensors.torch import load_file
+@@ -95,7 +97,7 @@ def load_audio_state(paths: TTMCheckpointPaths) -> dict[str, torch.Tensor]:
+     }
+     result: dict[str, torch.Tensor] = {}
+     for filename in sorted(selected_files):
+-        shard = load_file(str(paths.qwen_dir / filename), device="cpu")
++        shard = load_file(str(paths.qwen_dir / filename), device=str(device))
+         for key, value in shard.items():
+             if any(key.startswith(prefix) for prefix in prefixes):
+                 result[key] = value
+diff --git a/sglang_omni/models/minimax_music3/sglang_model.py b/sglang_omni/models/minimax_music3/sglang_model.py
+index c508839..e2a844d 100644
+--- a/sglang_omni/models/minimax_music3/sglang_model.py
++++ b/sglang_omni/models/minimax_music3/sglang_model.py
+@@ -26,10 +26,9 @@ def attach_minimax_modules(model: Any, checkpoint_root: str) -> None:
+ 
+     paths = resolve_checkpoint(checkpoint_root)
+     config = load_json(paths.config_path)
+-    audio_state = load_audio_state(paths)
+-
+     parameter = next(model.parameters())
+     device, dtype = parameter.device, parameter.dtype
++    audio_state = load_audio_state(paths, device=device)
+     hidden_size = int(config["hidden_size"])
+     audio_vocab_size = int(config["audio_vocab_size"])
+     num_codebooks = int(config["audio_num_codebooks"])

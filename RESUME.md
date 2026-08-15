@@ -10,6 +10,8 @@ Last updated: 2026-08-15
 - Model files are at `/root/minimax-music3-model` and occupy about 27 GB.
 - The Qwen index references 47 shards (`00000` through `00046`); all are present.
 - The MiniMax Music3 focused unit suite previously passed 89 tests.
+- A GPU-only adapter-loading patch is saved at `patches/sglang-omni-gpu-only.patch`.
+- The patched focused suite passes: `54 passed, 15 warnings`.
 - No model or download process was running after the VS Code tunnel dropped.
 
 ## Verified checkpoint sizes
@@ -20,11 +22,11 @@ Last updated: 2026-08-15
 - `flowmatching_vae.pth`: 9,828,468,476 bytes; loaded directly on GPU 1.
 - `dav.pth`: 491,817,450 bytes; loaded directly on GPU 1.
 
-## Active blocker under investigation
+## Current runtime plan
 
-The unquantized AR stage cannot fit on a 15,360 MiB T4: its retained BF16 weights alone are about 15.99 GiB, and the backend rejects tensor parallelism. The next step is to validate a supported weight-only quantized SGLang load that stays entirely on GPU at runtime. CPU/disk offload must remain disabled.
+The unquantized AR stage cannot fit on a 15,360 MiB T4: its retained BF16 weights alone are about 15.99 GiB, and the backend rejects tensor parallelism. SGLang 0.5.16 supports on-load BitsAndBytes NF4 on T4 (minimum compute capability 7.0); it streams one projection to CUDA, quantizes it there, and does not enable CPU offload. The next step is to install `bitsandbytes>=0.46.1` and run a load-only server smoke test with `--quantization bitsandbytes --cpu-offload-gb 0` and one AR request slot.
 
-The current upstream `load_audio_state` helper also stages about 1.29 GB of adapter tensors in CPU RAM before copying them to CUDA. If the quantized route fits, patch this helper locally to load selected safetensors directly onto the AR CUDA device before finalizing the Kaggle cells.
+The upstream `load_audio_state` helper staged about 1.29 GB of adapter tensors in CPU RAM. The saved patch changes safetensors loading to target the AR model's CUDA device directly and passes the focused tests.
 
 ## Useful commands
 
