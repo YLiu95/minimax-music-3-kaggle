@@ -1,0 +1,22 @@
+diff --git a/sglang_omni/platforms/cuda.py b/sglang_omni/platforms/cuda.py
+--- a/sglang_omni/platforms/cuda.py
++++ b/sglang_omni/platforms/cuda.py
+@@ -81,6 +81,17 @@ class CUDAOmniPlatform(CudaDeviceMixin, OmniPlatform):
+     def get_intra_node_transport(self) -> TransportKind:
+         from sglang_omni.comm.data_ref import TransportKind
+ 
+-        return TransportKind.CUDA_IPC
++        value = os.getenv("SGLANG_OMNI_INTRA_NODE_TRANSPORT", "cuda_ipc")
++        try:
++            transport = TransportKind(value)
++        except ValueError as exc:
++            raise ValueError(
++                "SGLANG_OMNI_INTRA_NODE_TRANSPORT must be 'cuda_ipc' or 'shm'"
++            ) from exc
++        if transport not in {TransportKind.CUDA_IPC, TransportKind.SHM}:
++            raise ValueError(
++                "SGLANG_OMNI_INTRA_NODE_TRANSPORT must be 'cuda_ipc' or 'shm'"
++            )
++        return transport
+ 
+     def get_fused_qk_norm_rope(self):

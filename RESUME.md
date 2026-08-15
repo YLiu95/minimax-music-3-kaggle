@@ -17,6 +17,7 @@ Last updated: 2026-08-15
 - A T4 AR dtype patch is saved at `patches/sglang-omni-t4-ar-dtype.patch`.
 - A T4 attention dtype patch is saved at `patches/sglang-omni-t4-attention-dtype.patch`.
 - A T4 Triton attention patch is saved at `patches/sglang-omni-t4-triton-attention.patch`.
+- A restricted-host SHM transport patch is saved at `patches/sglang-omni-shm-transport.patch`.
 - The patched focused suite passes: `54 passed, 15 warnings`.
 - The loader regression test passes with its neighboring builder test: `2 passed`.
 - Both Music3 BitsAndBytes regressions pass after filtering audio keys before quantization: `2 passed`.
@@ -25,6 +26,7 @@ Last updated: 2026-08-15
 - The T4/Ampere AR dtype selection and BitsAndBytes regressions pass: `4 passed`.
 - A T4 attention probe confirms BF16 input is normalized to FP16 before QKV and returns FP16 Q/K/V.
 - T4/Ampere dtype/backend selection plus BitsAndBytes regressions pass: `6 passed`.
+- CUDA IPC default, SHM override, and invalid transport rejection are validated.
 - No model or download process was running after the VS Code tunnel dropped.
 
 ## Verified checkpoint sizes
@@ -37,7 +39,7 @@ Last updated: 2026-08-15
 
 ## Current runtime plan
 
-The unquantized AR stage cannot fit on a 15,360 MiB T4: its retained BF16 weights alone are about 15.99 GiB, and the backend rejects tensor parallelism. BitsAndBytes 0.49.2 is installed and its NF4 CUDA probe passed on T4. Use `--mem-fraction-static 0.70`: it allocates 26,781 KV tokens, leaves 4.34 GiB before adapter attachment, and the adapter and both CUDA graph sets attach successfully. Set both `LIBRARY_PATH` and `LD_LIBRARY_PATH` to include `/usr/local/nvidia/lib64`. The FP16 request path reaches FlashInfer prefill, but its head-128 kernel needs 65,616 bytes shared memory while T4 permits 65,536. The T4 Triton patch selects SGLang's Triton attention backend on pre-Ampere GPUs and preserves the default on Ampere+. Restart with all seven patches, `--quantization bitsandbytes --cpu-offload-gb 0`, and one AR request slot, then repeat the 250-frame request.
+The unquantized AR stage cannot fit on a 15,360 MiB T4: its retained BF16 weights alone are about 15.99 GiB, and the backend rejects tensor parallelism. BitsAndBytes 0.49.2 is installed and its NF4 CUDA probe passed on T4. Use `--mem-fraction-static 0.70`: it allocates 26,781 KV tokens, leaves 4.34 GiB before adapter attachment, and the adapter and both CUDA graph sets attach successfully. Set both `LIBRARY_PATH` and `LD_LIBRARY_PATH` to include `/usr/local/nvidia/lib64`. Triton AR attention successfully generated 200 frames, then Kaggle denied CUDA IPC's `pidfd_getfd` syscall. Set `SGLANG_OMNI_INTRA_NODE_TRANSPORT=shm` with the SHM transport patch. This copies only streamed hidden-state chunks through host shared memory; model weights remain GPU-resident. Restart with all eight patches, `--quantization bitsandbytes --cpu-offload-gb 0`, and one AR request slot, then repeat the 250-frame request.
 
 The upstream `load_audio_state` helper staged about 1.29 GB of adapter tensors in CPU RAM. The saved patch changes safetensors loading to target the AR model's CUDA device directly and passes the focused tests.
 
