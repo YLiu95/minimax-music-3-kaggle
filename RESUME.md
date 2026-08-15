@@ -14,11 +14,13 @@ Last updated: 2026-08-15
 - A BitsAndBytes loader-selection patch is saved at `patches/sglang-omni-bitsandbytes-loader.patch`.
 - An SGLang NF4 weight-name patch is saved at `patches/sglang-nf4-weight-name.patch`.
 - A T4 RMSNorm fallback patch is saved at `patches/sglang-omni-t4-rmsnorm.patch`.
+- A T4 AR dtype patch is saved at `patches/sglang-omni-t4-ar-dtype.patch`.
 - The patched focused suite passes: `54 passed, 15 warnings`.
 - The loader regression test passes with its neighboring builder test: `2 passed`.
 - Both Music3 BitsAndBytes regressions pass after filtering audio keys before quantization: `2 passed`.
 - A tiny on-GPU NF4 iterator probe passes and returns CUDA `uint8` weights under the expected `.weight` name.
 - A T4 native RMSNorm probe passes with maximum absolute error `0.0`.
+- The T4/Ampere AR dtype selection and BitsAndBytes regressions pass: `4 passed`.
 - No model or download process was running after the VS Code tunnel dropped.
 
 ## Verified checkpoint sizes
@@ -31,7 +33,7 @@ Last updated: 2026-08-15
 
 ## Current runtime plan
 
-The unquantized AR stage cannot fit on a 15,360 MiB T4: its retained BF16 weights alone are about 15.99 GiB, and the backend rejects tensor parallelism. BitsAndBytes 0.49.2 is installed and its NF4 CUDA probe passed on T4. The Music3 loader, NF4 weight-name, and pre-quantization audio-filter fixes have all passed their focused tests. Use `--mem-fraction-static 0.70`: it allocates 26,781 KV tokens (enough for one CFG request up to the model's 9,000-frame cap), leaves 4.34 GiB before adapter attachment, and the 1.29 GB adapter then attaches successfully. Set both `LIBRARY_PATH` and `LD_LIBRARY_PATH` to include `/usr/local/nvidia/lib64` for FlashInfer JIT linking. The T4 RMSNorm patch avoids FlashInfer CUTLASS's unsupported `sm_75` path. Retry with all four patches, `--quantization bitsandbytes --cpu-offload-gb 0`, and one AR request slot.
+The unquantized AR stage cannot fit on a 15,360 MiB T4: its retained BF16 weights alone are about 15.99 GiB, and the backend rejects tensor parallelism. BitsAndBytes 0.49.2 is installed and its NF4 CUDA probe passed on T4. Use `--mem-fraction-static 0.70`: it allocates 26,781 KV tokens, leaves 4.34 GiB before adapter attachment, and the adapter and both CUDA graph sets attach successfully. Set both `LIBRARY_PATH` and `LD_LIBRARY_PATH` to include `/usr/local/nvidia/lib64`. The service reached healthy status, but its first request exposed a BF16 input versus FP16 FlashInfer plan mismatch because the Music3 stage hardcoded BF16 before SGLang's late T4 downgrade. The T4 AR dtype patch selects FP16 at the stage boundary. Restart with all five patches, `--quantization bitsandbytes --cpu-offload-gb 0`, and one AR request slot, then repeat the 250-frame request.
 
 The upstream `load_audio_state` helper staged about 1.29 GB of adapter tensors in CPU RAM. The saved patch changes safetensors loading to target the AR model's CUDA device directly and passes the focused tests.
 
