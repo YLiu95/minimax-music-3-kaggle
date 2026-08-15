@@ -1,0 +1,14 @@
+diff --git a/sglang_omni/models/minimax_music3/sglang_model.py b/sglang_omni/models/minimax_music3/sglang_model.py
+--- a/sglang_omni/models/minimax_music3/sglang_model.py
++++ b/sglang_omni/models/minimax_music3/sglang_model.py
+@@ -228,6 +228,11 @@ def _forward_prepare_unfused_qk_norm(self, positions, hidden_states):
+     from sglang.srt.models.utils import apply_qk_norm
+ 
++    if (
++        hidden_states.is_cuda
++        and torch.cuda.get_device_capability(hidden_states.device)[0] < 8
++    ):
++        hidden_states = hidden_states.to(torch.float16)
+     qkv, _ = self.qkv_proj(hidden_states)
+     q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
+     q, k = apply_qk_norm(
