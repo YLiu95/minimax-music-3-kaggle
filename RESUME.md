@@ -11,7 +11,9 @@ Last updated: 2026-08-15
 - The Qwen index references 47 shards (`00000` through `00046`); all are present.
 - The MiniMax Music3 focused unit suite previously passed 89 tests.
 - A GPU-only adapter-loading patch is saved at `patches/sglang-omni-gpu-only.patch`.
+- A BitsAndBytes loader-selection patch is saved at `patches/sglang-omni-bitsandbytes-loader.patch`.
 - The patched focused suite passes: `54 passed, 15 warnings`.
+- The loader regression test passes with its neighboring builder test: `2 passed`.
 - No model or download process was running after the VS Code tunnel dropped.
 
 ## Verified checkpoint sizes
@@ -24,7 +26,7 @@ Last updated: 2026-08-15
 
 ## Current runtime plan
 
-The unquantized AR stage cannot fit on a 15,360 MiB T4: its retained BF16 weights alone are about 15.99 GiB, and the backend rejects tensor parallelism. SGLang 0.5.16 supports on-load BitsAndBytes NF4 on T4 (minimum compute capability 7.0); it streams one projection to CUDA, quantizes it there, and does not enable CPU offload. The next step is to install `bitsandbytes>=0.46.1` and run a load-only server smoke test with `--quantization bitsandbytes --cpu-offload-gb 0` and one AR request slot.
+The unquantized AR stage cannot fit on a 15,360 MiB T4: its retained BF16 weights alone are about 15.99 GiB, and the backend rejects tensor parallelism. BitsAndBytes 0.49.2 is installed and its NF4 CUDA probe passed on T4. The first server load exposed a loader mismatch: quantized layer shapes were created, but `load_format=auto` selected the standard BF16 loader and failed with a shape assertion after two shards. The saved loader patch forces `load_format=bitsandbytes` whenever this builder receives BitsAndBytes quantization. Retry the server load with both patches, `--quantization bitsandbytes --cpu-offload-gb 0`, and one AR request slot.
 
 The upstream `load_audio_state` helper staged about 1.29 GB of adapter tensors in CPU RAM. The saved patch changes safetensors loading to target the AR model's CUDA device directly and passes the focused tests.
 

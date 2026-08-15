@@ -1,0 +1,13 @@
+diff --git a/sglang_omni/models/minimax_music3/engine_builder.py b/sglang_omni/models/minimax_music3/engine_builder.py
+index e639f11..c03b5b1 100644
+--- a/sglang_omni/models/minimax_music3/engine_builder.py
++++ b/sglang_omni/models/minimax_music3/engine_builder.py
+@@ -65,6 +65,8 @@ class MiniMaxMusic3EngineBuilder(TtsEngineBuilder):
+     def adjust_overrides(self, overrides: dict[str, Any]) -> None:
+         if int(overrides.get("tp_size", 1)) != 1:
+             raise ValueError("MiniMax Music 3 does not support TP")
++        if overrides.get("quantization") == "bitsandbytes":
++            overrides["load_format"] = "bitsandbytes"
+         requested = int(
+             overrides.get("max_running_requests", self.max_running_requests)
+         )
