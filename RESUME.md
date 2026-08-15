@@ -33,6 +33,7 @@ Last updated: 2026-08-15
 - Final Kaggle setup stores the support repo, source, virtual environment, package caches, and model under `/root`.
 - `/kaggle/working` is used only for `/kaggle/working/minimax-music3-logs` and `/kaggle/working/minimax-music3-output`.
 - Cell 2 keeps all editable configuration at the bottom and names every WAV with a UTC timestamp and seed.
+- Cell 1 removes the two legacy `/kaggle/working` runtime/support folders created by the old workflow before cloning into `/root`.
 
 ## Verified checkpoint sizes
 

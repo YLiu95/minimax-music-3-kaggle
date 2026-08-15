@@ -20,6 +20,7 @@ The first run downloads only the 58 required model files, about 28.8 GB, and ins
 import base64
 import importlib
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -31,6 +32,15 @@ github_token = secrets.get_secret("GITHUB_TOKEN")
 hf_token = secrets.get_secret("HF_TOKEN")
 if not github_token or not hf_token:
     raise RuntimeError("Add GITHUB_TOKEN and HF_TOKEN in Kaggle Secrets, then rerun Cell 1.")
+
+for legacy_dir in (
+    Path("/kaggle/working/minimax-music3-runtime"),
+    Path("/kaggle/working/minimax-music-3-kaggle"),
+):
+    if legacy_dir.exists():
+        print(f"Removing legacy runtime folder: {legacy_dir}")
+        shutil.rmtree(legacy_dir)
+
 support_dir = Path("/root/minimax-music-3-kaggle")
 
 if not (support_dir / ".git").exists():
@@ -68,6 +78,8 @@ MiniMax Music3 is healthy at http://127.0.0.1:8000
 ```
 
 Rerunning Cell 1 is safe. It resumes model downloads, skips applied patches, and reuses a healthy server.
+
+Cell 1 also removes only the two legacy folders created by the previous `/kaggle/working`-based version, reclaiming any space consumed by its interrupted download.
 
 ## Cell 2: Generate Music
 

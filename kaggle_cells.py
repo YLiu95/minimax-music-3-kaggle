@@ -2,6 +2,7 @@
 import base64
 import importlib
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -13,6 +14,15 @@ github_token = secrets.get_secret("GITHUB_TOKEN")
 hf_token = secrets.get_secret("HF_TOKEN")
 if not github_token or not hf_token:
     raise RuntimeError("Add GITHUB_TOKEN and HF_TOKEN in Kaggle Secrets, then rerun Cell 1.")
+
+for legacy_dir in (
+    Path("/kaggle/working/minimax-music3-runtime"),
+    Path("/kaggle/working/minimax-music-3-kaggle"),
+):
+    if legacy_dir.exists():
+        print(f"Removing legacy runtime folder: {legacy_dir}")
+        shutil.rmtree(legacy_dir)
+
 support_dir = Path("/root/minimax-music-3-kaggle")
 
 if not (support_dir / ".git").exists():
