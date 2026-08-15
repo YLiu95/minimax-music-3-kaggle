@@ -1,0 +1,12 @@
+diff --git a/sglang/srt/model_loader/loader.py b/sglang/srt/model_loader/loader.py
+--- a/sglang/srt/model_loader/loader.py
++++ b/sglang/srt/model_loader/loader.py
+@@ -1910,8 +1910,6 @@ class BitsAndBytesModelLoader(BaseModelLoader):
+             if any(
+                 target_module in weight_name for target_module in self.target_modules
+             ) and weight_name.endswith(".weight"):
+-                weight_name = weight_name.replace(".weight", ".qweight")
+-
+                 if any(
+                     module in weight_name
+                     for module in self.column_parallel_weights_modules

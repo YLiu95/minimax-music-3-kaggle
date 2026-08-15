@@ -12,8 +12,10 @@ Last updated: 2026-08-15
 - The MiniMax Music3 focused unit suite previously passed 89 tests.
 - A GPU-only adapter-loading patch is saved at `patches/sglang-omni-gpu-only.patch`.
 - A BitsAndBytes loader-selection patch is saved at `patches/sglang-omni-bitsandbytes-loader.patch`.
+- An SGLang NF4 weight-name patch is saved at `patches/sglang-nf4-weight-name.patch`.
 - The patched focused suite passes: `54 passed, 15 warnings`.
 - The loader regression test passes with its neighboring builder test: `2 passed`.
+- A tiny on-GPU NF4 iterator probe passes and returns CUDA `uint8` weights under the expected `.weight` name.
 - No model or download process was running after the VS Code tunnel dropped.
 
 ## Verified checkpoint sizes
@@ -26,7 +28,7 @@ Last updated: 2026-08-15
 
 ## Current runtime plan
 
-The unquantized AR stage cannot fit on a 15,360 MiB T4: its retained BF16 weights alone are about 15.99 GiB, and the backend rejects tensor parallelism. BitsAndBytes 0.49.2 is installed and its NF4 CUDA probe passed on T4. The first server load exposed a loader mismatch: quantized layer shapes were created, but `load_format=auto` selected the standard BF16 loader and failed with a shape assertion after two shards. The saved loader patch forces `load_format=bitsandbytes` whenever this builder receives BitsAndBytes quantization. Retry the server load with both patches, `--quantization bitsandbytes --cpu-offload-gb 0`, and one AR request slot.
+The unquantized AR stage cannot fit on a 15,360 MiB T4: its retained BF16 weights alone are about 15.99 GiB, and the backend rejects tensor parallelism. BitsAndBytes 0.49.2 is installed and its NF4 CUDA probe passed on T4. The first server load exposed `load_format=auto`; the Music3 loader patch fixes that. The second load reached `BitsAndBytesModelLoader`, then exposed an SGLang 0.5.16 mismatch: NF4 parameters are registered as `.weight`, but the online iterator renamed checkpoint keys to `.qweight`. The saved NF4 patch removes that stale rename. Retry with all three patches, `--quantization bitsandbytes --cpu-offload-gb 0`, and one AR request slot.
 
 The upstream `load_audio_state` helper staged about 1.29 GB of adapter tensors in CPU RAM. The saved patch changes safetensors loading to target the AR model's CUDA device directly and passes the focused tests.
 
