@@ -28,6 +28,8 @@ Last updated: 2026-08-15
 - T4/Ampere dtype/backend selection plus BitsAndBytes regressions pass: `6 passed`.
 - CUDA IPC default, SHM override, and invalid transport rejection are validated.
 - No model or download process was running after the VS Code tunnel dropped.
+- Final deliverables are `README.md`, `kaggle_cells.py`, and `kaggle_setup.py`.
+- End-to-end validation passed with Triton attention and SHM relay: HTTP 200, stereo 32 kHz 16-bit WAV, 9.996 seconds, 1,279,560 bytes.
 
 ## Verified checkpoint sizes
 
@@ -37,9 +39,11 @@ Last updated: 2026-08-15
 - `flowmatching_vae.pth`: 9,828,468,476 bytes; loaded directly on GPU 1.
 - `dav.pth`: 491,817,450 bytes; loaded directly on GPU 1.
 
-## Current runtime plan
+## Validated runtime
 
-The unquantized AR stage cannot fit on a 15,360 MiB T4: its retained BF16 weights alone are about 15.99 GiB, and the backend rejects tensor parallelism. BitsAndBytes 0.49.2 is installed and its NF4 CUDA probe passed on T4. Use `--mem-fraction-static 0.70`: it allocates 26,781 KV tokens, leaves 4.34 GiB before adapter attachment, and the adapter and both CUDA graph sets attach successfully. Set both `LIBRARY_PATH` and `LD_LIBRARY_PATH` to include `/usr/local/nvidia/lib64`. Triton AR attention successfully generated 200 frames, then Kaggle denied CUDA IPC's `pidfd_getfd` syscall. Set `SGLANG_OMNI_INTRA_NODE_TRANSPORT=shm` with the SHM transport patch. This copies only streamed hidden-state chunks through host shared memory; model weights remain GPU-resident. Restart with all eight patches, `--quantization bitsandbytes --cpu-offload-gb 0`, and one AR request slot, then repeat the 250-frame request.
+The unquantized AR stage cannot fit on a 15,360 MiB T4, so the validated setup uses BitsAndBytes 0.49.2 NF4 with FP16 compute on GPU 0. GPU 1 runs the FP32 acoustic stage. `--mem-fraction-static 0.70` allocates 26,781 KV tokens and leaves room for adapters and CUDA graphs. Triton attention avoids T4 FlashInfer limits. `SGLANG_OMNI_INTRA_NODE_TRANSPORT=shm` avoids Kaggle's blocked `pidfd_getfd` syscall and stages only streamed hidden chunks. Model weights remain GPU-resident and `--cpu-offload-gb 0` is explicit.
+
+The final setup patch sequence was also applied to a fresh detached checkout at the pinned SGLang revision, and all touched Python modules compiled successfully.
 
 The upstream `load_audio_state` helper staged about 1.29 GB of adapter tensors in CPU RAM. The saved patch changes safetensors loading to target the AR model's CUDA device directly and passes the focused tests.
 
