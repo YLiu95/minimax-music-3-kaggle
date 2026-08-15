@@ -12,7 +12,7 @@ Run [MiniMax Music 3](https://github.com/MiniMax-AI/MiniMax-Music3) on a Kaggle 
 4. Paste Cell 1 and run it once. Keep the notebook session alive after it reports healthy.
 5. Edit the prompt in Cell 2 and run it whenever you want a new song.
 
-The first run downloads only the 58 required model files, about 28.8 GB, and installs an isolated environment under `/kaggle/working/minimax-music3-runtime`. Startup typically takes several minutes. A 10-second clip takes roughly 2-4 minutes on two T4s.
+The first run downloads only the 58 required model files, about 28.8 GB, and installs everything under `/root/minimax-music3-runtime`. Nothing is downloaded or installed under `/kaggle/working`. Startup typically takes several minutes. A 10-second clip takes roughly 2-4 minutes on two T4s.
 
 ## Cell 1: Setup and Start
 
@@ -31,7 +31,7 @@ github_token = secrets.get_secret("GITHUB_TOKEN")
 hf_token = secrets.get_secret("HF_TOKEN")
 if not github_token or not hf_token:
     raise RuntimeError("Add GITHUB_TOKEN and HF_TOKEN in Kaggle Secrets, then rerun Cell 1.")
-support_dir = Path("/kaggle/working/minimax-music-3-kaggle")
+support_dir = Path("/root/minimax-music-3-kaggle")
 
 if not (support_dir / ".git").exists():
     auth = base64.b64encode(f"x-access-token:{github_token}".encode()).decode()
@@ -71,15 +71,64 @@ Rerunning Cell 1 is safe. It resumes model downloads, skips applied patches, and
 
 ## Cell 2: Generate Music
 
-Edit `LYRICS`, `CAPTION`, `SEED`, and `MAX_NEW_TOKENS`, then run:
+All editable configuration is in the section at the bottom of the cell. Edit it, then run:
 
 ```python
 import wave
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
 from IPython.display import Audio, display
 
+
+def generate_music(
+    *,
+    server_url,
+    model_name,
+    lyrics,
+    caption,
+    seed,
+    max_new_tokens,
+    output_dir,
+    output_prefix,
+    request_timeout,
+):
+    response = requests.post(
+        f"{server_url}/v1/audio/speech",
+        json={
+            "model": model_name,
+            "input": lyrics,
+            "instructions": caption,
+            "response_format": "wav",
+            "seed": seed,
+            "max_new_tokens": max_new_tokens,
+            "stream": False,
+        },
+        timeout=request_timeout,
+    )
+    if not response.ok:
+        raise RuntimeError(
+            f"Generation failed ({response.status_code}): {response.text[:2000]}"
+        )
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%fZ")
+    output = output_dir / f"{output_prefix}_{timestamp}_seed{seed}.wav"
+    output.write_bytes(response.content)
+
+    with wave.open(str(output), "rb") as wav_file:
+        assert wav_file.getnchannels() == 2
+        assert wav_file.getframerate() == 32000
+        duration = wav_file.getnframes() / wav_file.getframerate()
+    print(f"Saved {output} ({duration:.2f} seconds, {output.stat().st_size:,} bytes)")
+    display(Audio(filename=str(output)))
+    return output
+
+
+# Configuration: edit values only in this section.
+SERVER_URL = "http://127.0.0.1:8000"
+MODEL_NAME = "MiniMaxAI/MiniMax-Music3"
 LYRICS = """[Verse]
 Morning light is filtering through the pines
 [Chorus]
@@ -90,34 +139,24 @@ CAPTION = (
 )
 SEED = 7
 MAX_NEW_TOKENS = 250  # 25 frames/second: 250 is about 10 seconds.
-OUTPUT = Path("/kaggle/working/minimax_music3.wav")
+OUTPUT_DIR = Path("/kaggle/working/minimax-music3-output")
+OUTPUT_PREFIX = "minimax_music3"
+REQUEST_TIMEOUT = 6 * 60 * 60
 
-response = requests.post(
-    "http://127.0.0.1:8000/v1/audio/speech",
-    json={
-        "model": "MiniMaxAI/MiniMax-Music3",
-        "input": LYRICS,
-        "instructions": CAPTION,
-        "response_format": "wav",
-        "seed": SEED,
-        "max_new_tokens": MAX_NEW_TOKENS,
-        "stream": False,
-    },
-    timeout=6 * 60 * 60,
+OUTPUT = generate_music(
+    server_url=SERVER_URL,
+    model_name=MODEL_NAME,
+    lyrics=LYRICS,
+    caption=CAPTION,
+    seed=SEED,
+    max_new_tokens=MAX_NEW_TOKENS,
+    output_dir=OUTPUT_DIR,
+    output_prefix=OUTPUT_PREFIX,
+    request_timeout=REQUEST_TIMEOUT,
 )
-if not response.ok:
-    raise RuntimeError(f"Generation failed ({response.status_code}): {response.text[:2000]}")
-OUTPUT.write_bytes(response.content)
-
-with wave.open(str(OUTPUT), "rb") as wav_file:
-    assert wav_file.getnchannels() == 2
-    assert wav_file.getframerate() == 32000
-    duration = wav_file.getnframes() / wav_file.getframerate()
-print(f"Saved {OUTPUT} ({duration:.2f} seconds, {OUTPUT.stat().st_size:,} bytes)")
-display(Audio(filename=str(OUTPUT)))
 ```
 
-The WAV is saved at `/kaggle/working/minimax_music3.wav` and displayed in the notebook.
+Each WAV is displayed in the notebook and saved under `/kaggle/working/minimax-music3-output` with a UTC timestamp and seed, for example `minimax_music3_20260815_181900_123456Z_seed7.wav`.
 
 ## Prompt Guide
 
@@ -144,15 +183,17 @@ Start with 250 frames. Long generations on T4 are slow. The model may end natura
 - GPU 0: Qwen3/RVQ autoregressive stage in on-load NF4 with FP16 compute.
 - GPU 1: Flow Matching and DAV waveform decoder in FP32.
 - `--cpu-offload-gb 0` is always set. Model weights are not offloaded to CPU or disk during inference.
-- Checkpoint files are necessarily stored under `/kaggle/working`; they are loaded into GPU memory for inference.
+- Source, Python environment, package caches, and checkpoint files are stored under `/root`, not `/kaggle/working`.
+- Only timestamped WAV files and server logs are written under `/kaggle/working`, in separate dedicated folders.
 - Kaggle blocks the CUDA IPC syscall used by the default relay. Only streamed hidden-state chunks cross host shared memory; model weights remain GPU-resident.
 - Installation and model download concurrency are deliberately capped to protect Kaggle host RAM.
 
 ## Troubleshooting
 
-- Server log: `/kaggle/working/minimax-music3-runtime/server.log`
+- Server log: `/kaggle/working/minimax-music3-logs/server.log`
+- Generated WAV files: `/kaggle/working/minimax-music3-output/`
 - Health check: `http://127.0.0.1:8000/health`
-- If the Kaggle session restarts, rerun Cell 1. Downloads resume from existing files when `/kaggle/working` survives.
+- If the Kaggle session restarts, rerun Cell 1. Existing files under `/root/minimax-music3-runtime` are reused when available.
 - If Cell 2 says connection refused, rerun Cell 1 and wait for the healthy message.
 - Do not raise `--mem-fraction-static` or `--max-running-requests` on T4; the tested values leave required room for adapters and CUDA graphs.
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import site
 import subprocess
 import sys
 import time
@@ -15,11 +14,11 @@ SGLANG_REPO = "https://github.com/sgl-project/sglang-omni.git"
 SGLANG_REVISION = "2d2ff5056f8c321f1dbc2ff6584baf05996ce150"
 MODEL_REPO = "MiniMaxAI/MiniMax-Music3"
 MODEL_REVISION = "fbdf52fbaaca799592917417eb05f1899f1255ec"
-WORK_DIR = Path("/kaggle/working/minimax-music3-runtime")
+WORK_DIR = Path("/root/minimax-music3-runtime")
 SOURCE_DIR = WORK_DIR / "sglang-omni"
 VENV_DIR = WORK_DIR / ".venv"
 MODEL_DIR = WORK_DIR / "model"
-LOG_PATH = WORK_DIR / "server.log"
+LOG_PATH = Path("/kaggle/working/minimax-music3-logs/server.log")
 HEALTH_URL = "http://127.0.0.1:8000/health"
 
 SOURCE_PATCHES = (
@@ -213,6 +212,7 @@ def setup(hf_token: str) -> subprocess.Popen | None:
     _ensure_two_gpus()
     support_dir = Path(__file__).resolve().parent
     WORK_DIR.mkdir(parents=True, exist_ok=True)
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     _ensure_source()
     for patch_name in SOURCE_PATCHES:
         _apply_source_patch(SOURCE_DIR, support_dir / "patches" / patch_name)

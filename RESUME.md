@@ -30,6 +30,9 @@ Last updated: 2026-08-15
 - No model or download process was running after the VS Code tunnel dropped.
 - Final deliverables are `README.md`, `kaggle_cells.py`, and `kaggle_setup.py`.
 - End-to-end validation passed with Triton attention and SHM relay: HTTP 200, stereo 32 kHz 16-bit WAV, 9.996 seconds, 1,279,560 bytes.
+- Final Kaggle setup stores the support repo, source, virtual environment, package caches, and model under `/root`.
+- `/kaggle/working` is used only for `/kaggle/working/minimax-music3-logs` and `/kaggle/working/minimax-music3-output`.
+- Cell 2 keeps all editable configuration at the bottom and names every WAV with a UTC timestamp and seed.
 
 ## Verified checkpoint sizes
 
@@ -44,6 +47,8 @@ Last updated: 2026-08-15
 The unquantized AR stage cannot fit on a 15,360 MiB T4, so the validated setup uses BitsAndBytes 0.49.2 NF4 with FP16 compute on GPU 0. GPU 1 runs the FP32 acoustic stage. `--mem-fraction-static 0.70` allocates 26,781 KV tokens and leaves room for adapters and CUDA graphs. Triton attention avoids T4 FlashInfer limits. `SGLANG_OMNI_INTRA_NODE_TRANSPORT=shm` avoids Kaggle's blocked `pidfd_getfd` syscall and stages only streamed hidden chunks. Model weights remain GPU-resident and `--cpu-offload-gb 0` is explicit.
 
 The final setup patch sequence was also applied to a fresh detached checkout at the pinned SGLang revision, and all touched Python modules compiled successfully.
+
+After a Kaggle `No space left on device` failure, the deliverables were revised so no download or installation targets `/kaggle/working`; only logs and generated audio are written there.
 
 The upstream `load_audio_state` helper staged about 1.29 GB of adapter tensors in CPU RAM. The saved patch changes safetensors loading to target the AR model's CUDA device directly and passes the focused tests.
 
